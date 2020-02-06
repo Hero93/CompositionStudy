@@ -12,19 +12,40 @@ protocol FeedLoader {
     func loadFeed(completion: ([String]) -> Void)
 }
 
+struct Reachability {
+    static let networkAvailable: Bool = false
+}
+
 class FeedVC: UIViewController {
-    var loader: FeedLoader!
     
-    convenience init(loader: FeedLoader) {
+    // MARK: - IVars
+    
+    // The easier way to load data from cache when internet connection is not available it's to
+    // depend on concrete type again (RemoteFeedLoader) & (LocalFeedLoader) instead of an interface.
+    
+    var remote: RemoteFeedLoader!
+    var local: LocalFeedLoader!
+
+    // MARK: - Init
+
+    convenience init(remote: RemoteFeedLoader, local: LocalFeedLoader) {
         self.init()
-        self.loader = loader
+        self.local = local
+        self.remote = remote
     }
+    
+    // MARK: - View lifecycle
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        loader.loadFeed { feed in
-            
+        // We need to enter the logic to load data from cache when internet is not available inside the view controller.
+        // But, by doing this, I can't change the behaviour of the view controller without changing the internal code -> vc not open to extension.
+        
+        if Reachability.networkAvailable {
+            remote.loadFeed { feed in }
+        } else {
+            local.loadFeed { feed in }
         }
     }
 }
