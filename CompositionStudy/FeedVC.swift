@@ -12,49 +12,73 @@ protocol FeedLoader {
     func loadFeed(completion: ([String]) -> Void)
 }
 
-struct Reachability {
-    static let networkAvailable: Bool = false
-}
-
 class FeedVC: UIViewController {
     
     // MARK: - IVars
     
-    // The easier way to load data from cache when internet connection is not available it's to
-    // depend on concrete type again (RemoteFeedLoader) & (LocalFeedLoader) instead of an interface.
-    
-    var remote: RemoteFeedLoader!
-    var local: LocalFeedLoader!
+    var loader: FeedLoader!
 
     // MARK: - Init
 
-    convenience init(remote: RemoteFeedLoader, local: LocalFeedLoader) {
+    convenience init(loader: FeedLoader) {
         self.init()
-        self.local = local
-        self.remote = remote
+        self.loader = loader
     }
     
     // MARK: - View lifecycle
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        // We need to enter the logic to load data from cache when internet is not available inside the view controller.
-        // But, by doing this, I can't change the behaviour of the view controller without changing the internal code -> vc not open to extension.
+                
+        loader.loadFeed { feed in
+            print(feed)
+        }
+    }
+}
+
+let feedVC = FeedVC(loader: LocalFeedLoader())
+let feedVC2 = FeedVC(loader: RemoteFeedLoader())
+let feedVC3 = FeedVC(loader: RemoteWithLocalFallbackFeedLoader(remote: RemoteFeedLoader(), local: LocalFeedLoader()))
+
+struct Reachability {
+    static let networkAvailable: Bool = false
+}
+
+class RemoteWithLocalFallbackFeedLoader: FeedLoader {
+    
+    // The best way to handle the feed load based on the internet connection it's using "Composition".
+    // We encapsulate the logic of loading the feed to a new class called "RemoteWithLocalFallbackFeedLoader".
+    
+    // "RemoteWithLocalFallbackFeedLoader" composes the 2 concrete types "RemoteFeedLoader" & "LocalFeedLoader".
+    
+    // By making this class conform to the "FeedLoader" protocol, we can plug it to the "FeedVC" so the view controller
+    // remains agnostic from the origin of the feed.
+    
+    // Even "RemoteFeedLoader" and "LocalFeedLoader" are agnostic to this class type.
+
+    // The "FeedVC" doesn't care where the feed is coming, so we can now test the "FeedVC" very easily.
+    
+    
+    let remote: RemoteFeedLoader // 1st concrete type
+    let local: LocalFeedLoader // 2nd concrete type
+    
+    init(remote: RemoteFeedLoader, local: LocalFeedLoader) {
+        self.remote = remote
+        self.local = local
+    }
+    
+    func loadFeed(completion: ([String]) -> Void) {
         
         if Reachability.networkAvailable {
-            remote.loadFeed { feed in }
+            remote.loadFeed(completion: completion)
         } else {
-            local.loadFeed { feed in }
+            local.loadFeed(completion: completion)
         }
     }
 }
 
 class RemoteFeedLoader: FeedLoader {
-    
-    // Some people might add some logic to load data from cache if internet connection is not available
-    // -> By doing this when break the Single Responsability Principle.
-    
+        
     func loadFeed(completion: ([String]) -> Void) {
         // TODO: call web service or mock
     }
